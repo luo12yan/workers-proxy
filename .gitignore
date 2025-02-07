@@ -2,5 +2,8 @@
 /.wrangler
 /build
 /node_modules
+/.dist
+/.gitignore
+/Cargo.lock
 .gitignore
 Cargo.lock

@@ -13,8 +13,8 @@
     参考官方文档
     <https://developers.cloudflare.com/workers/languages/rust/>
 ## 2.服务器配置
-### 2.1 在网页上添加修改配置
-    
+### 2.1 在Cloudflare Workers管理页添加修改配置
+![img](doc/img.png)
 ### 2.2 通过wrangler.toml修改配置
 ```toml
 [vars]
