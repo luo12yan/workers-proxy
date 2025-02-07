@@ -23,8 +23,8 @@ PROXY_IP = ""
 DEFAULT_PAGE = "<html><head><title>啦啦啦</title></head><body><h1>Hello, world!</h1></body></html>" #默认页提示
 ```
 ## 2.客户端
-    客户端使用Xray
-    <https://github.com/XTLS/Xray-core>
+客户端使用Xray
+<https://github.com/XTLS/Xray-core>
 
 ## 订阅地址
    默认订阅地址:https://你的Worker名.你的用户名.workers.dev/USER_ID
