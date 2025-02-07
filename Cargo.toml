@@ -1,0 +1,38 @@
+[package]
+name = "proxyvless"
+version = "0.1.0"
+edition = "2021"
+authors = ["czlz"]
+
+[package.metadata.release]
+release = true
+
+# https://github.com/rustwasm/wasm-pack/issues/1247
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+[package.metadata.wasm-pack.profile.release.wasm-bindgen]
+debug-js-glue = false
+demangle-name-section = false
+dwarf-debug-info = false
+omit-default-module-path = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+worker = { version = "0.5.0" }
+worker-macros = { version = "0.5.0" }
+console_error_panic_hook = { version = "0.1.7" }
+tower-service = { version = "0.3.3" }
+wasm-bindgen-futures = { version = "0.4.50" }
+futures-util = { version = "0.3.28", default-features = false }
+tokio = { version = "1.43.0", features = ["io-util"] }
+serde = { version = "1.0.217" }
+pin-project = { version = "1.1.9" }
+base64 = { version = "0.22.1" }
+bytes = { version = "1.10.0" }
+
+[profile.release]
+lto = true
+strip = true
+codegen-units = 1
