@@ -18,7 +18,7 @@
 ### 2.2 通过wrangler.toml修改配置
 ```toml
 [vars]
-USER_ID = "1cc19698-31e7-47ca-a29b-34b6b1ded557" #用户ID
+USER_ID = "4ab2748d-8b29-4b3a-a53b-4509222c8612" #用户ID
 PROXY_IP = ""
 DEFAULT_PAGE = "<html><head><title>啦啦啦</title></head><body><h1>Hello, world!</h1></body></html>" #默认页提示
 ```

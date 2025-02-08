@@ -1,4 +1,8 @@
-use crate::{proxy::parse_user_id, websocket::ws_handler};
+use crate::{
+    ext::RequestExt,
+    proxy::{parse_early_data, parse_user_id},
+    websocket::ws_handler,
+};
 use base64::{engine::general_purpose, Engine as _};
 use worker::*;
 
@@ -38,22 +42,20 @@ pub fn router_handler(req: Request, env: Env) -> Result<Response> {
         .map(|s| s.to_string())
         .collect::<Vec<String>>();
 
-    let path = req.path().to_string();
-
     //判断是否为websocket请求
-
     let is_ws = req
-        .headers()
-        .get("Upgrade")?
-        .map(|up| up == *"websocket")
-        .unwrap_or(false);
+        .header("Upgrade")
+        .map_or(false, |s| s.to_lowercase() == "websocket");
 
-    if is_ws {
-        return ws_handler(req, user_id, proxy_ip);
+    let ws_protocol = req.header("sec-websocket-protocol");
+    let ws_protocol = parse_early_data(ws_protocol).unwrap_or(None);
+
+    if is_ws && ws_protocol.is_some() {
+        return ws_handler(user_id, proxy_ip, ws_protocol);
     }
 
     //判断用户UUID,如果存在则转去痛授权页面
-    if path.contains(user_str.as_str()) && user_str.len() > 0 {
+    if req.path().to_string().contains(user_str.as_str()) && user_str.len() > 0 {
         return subscribe_page(req, user_str);
     }
 

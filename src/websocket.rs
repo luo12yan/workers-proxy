@@ -15,9 +15,9 @@ use worker::{
 use crate::proxy::{parse_early_data, run_tunnel};
 
 pub fn ws_handler(
-    req: Request,
     user_id: Vec<u8>,
     proxy_ip: Vec<String>,
+    ws_protocol: Option<Vec<u8>>,
 ) -> worker::Result<Response> {
     let ws = WebSocketPair::new()?;
     let client = ws.client;
@@ -25,15 +25,12 @@ pub fn ws_handler(
 
     server.accept()?;
 
-    let early_data = req.headers().get("sec-websocket-protocol")?;
-    let early_data = parse_early_data(early_data)?;
-
     wasm_bindgen_futures::spawn_local(async move {
         // create websocket stream
         let socket = WebSocketStream::new(
             &server,
             server.events().expect("could not open stream"),
-            early_data,
+            ws_protocol,
         );
 
         // into tunnel
