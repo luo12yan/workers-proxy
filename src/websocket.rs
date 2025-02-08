@@ -9,10 +9,10 @@ use bytes::{BufMut, BytesMut};
 use pin_project::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use worker::{
-    console_error, EventStream, Request, Response, WebSocket, WebSocketPair, WebsocketEvent,
+    console_error, EventStream, Response, WebSocket, WebSocketPair, WebsocketEvent,
 };
 
-use crate::proxy::{parse_early_data, run_tunnel};
+use crate::proxy::run_tunnel;
 
 pub fn ws_handler(
     user_id: Vec<u8>,

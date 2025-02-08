@@ -50,7 +50,7 @@ pub fn router_handler(req: Request, env: Env) -> Result<Response> {
     let ws_protocol = req.header("sec-websocket-protocol");
     let ws_protocol = parse_early_data(ws_protocol).unwrap_or(None);
 
-    if is_ws && ws_protocol.is_some() {
+    if is_ws  {
         return ws_handler(user_id, proxy_ip, ws_protocol);
     }
 
