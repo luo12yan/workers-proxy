@@ -20,5 +20,5 @@ mod protocol {
 #[event(fetch)]
 async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     console_error_panic_hook::set_once();
-    router_handler(req, env)
+    router_handler(req, env).await
 }

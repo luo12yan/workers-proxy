@@ -8,22 +8,73 @@ use std::{
 use bytes::{BufMut, BytesMut};
 use pin_project::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use worker::{
-    console_error, EventStream, Response, WebSocket, WebSocketPair, WebsocketEvent,
+use worker::*;
+
+use crate::{
+    ext::RequestExt,
+    proxy::{parse_early_data, parse_user_id, run_tunnel},
 };
 
-use crate::proxy::run_tunnel;
+// pub fn ws_handler(
+//     user_id: Vec<u8>,
+//     proxy_ip: Vec<String>,
+//     ws_protocol: Option<Vec<u8>>,
+// ) -> worker::Result<Response> {
+//     let ws = WebSocketPair::new()?;
+//     let client = ws.client;
+//     let server = ws.server;
 
-pub fn ws_handler(
-    user_id: Vec<u8>,
-    proxy_ip: Vec<String>,
-    ws_protocol: Option<Vec<u8>>,
-) -> worker::Result<Response> {
+//     server.accept()?;
+
+//     wasm_bindgen_futures::spawn_local(async move {
+//         // create websocket stream
+//         let socket = WebSocketStream::new(
+//             &server,
+//             server.events().expect("could not open stream"),
+//             ws_protocol,
+//         );
+
+//         // into tunnel
+//         if let Err(err) = run_tunnel(socket, user_id, proxy_ip).await {
+//             // log error
+//             console_error!("error: {}", err);
+
+//             // close websocket connection
+//             _ = server.close(Some(1003), Some("invalid request"));
+//         }
+//     });
+
+//     Response::from_websocket(client)
+// }
+
+pub fn ws_handler(req: Request, env: &Env) -> worker::Result<Response> {
+    let user_str = env.var("USER_ID").map_or(String::new(), |s| s.to_string());
+    let user_id = parse_user_id(&user_str);
+
+    // get proxy ip list
+    let proxy_ip = env.var("PROXY_IP").map_or(String::new(), |s| s.to_string());
+    let proxy_ip = proxy_ip
+        .split_ascii_whitespace()
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .collect::<Vec<String>>();
+
+    let ws_protocol = req.header("sec-websocket-protocol");
+    let ws_protocol = parse_early_data(ws_protocol).unwrap_or(None);
+
+    if user_str == "" {
+        return Response::error("User ID is not configured", 500);
+    }
+
+
+
     let ws = WebSocketPair::new()?;
-    let client = ws.client;
     let server = ws.server;
 
-    server.accept()?;
+    if let Err(e)=server.accept(){
+        console_error!("WebSocket accept error: {}", e);
+        return Response::error("WebSocket accept failed", 500);
+    }
 
     wasm_bindgen_futures::spawn_local(async move {
         // create websocket stream
@@ -36,14 +87,33 @@ pub fn ws_handler(
         // into tunnel
         if let Err(err) = run_tunnel(socket, user_id, proxy_ip).await {
             // log error
-            console_error!("error: {}", err);
-
+            console_error!("Run tunnel error: {}", err);
             // close websocket connection
             _ = server.close(Some(1003), Some("invalid request"));
         }
     });
 
-    Response::from_websocket(client)
+    Response::from_websocket(ws.client)
+}
+
+#[durable_object]
+pub struct WebSocketSession {
+    _state: State,
+    env: Env, // access `Env` across requests, use inside `fetch
+}
+
+#[durable_object]
+impl<'a> DurableObject for WebSocketSession {
+    fn new(state: State, env: Env) -> Self {
+        Self {
+            _state: state,
+            env: env,
+        }
+    }
+
+    async fn fetch(&mut self, req: Request) -> worker::Result<Response> {
+        ws_handler(req, &self.env)
+    }
 }
 
 #[pin_project]
@@ -89,6 +159,7 @@ impl AsyncRead for WebSocketStream<'_> {
                     continue;
                 }
                 Poll::Ready(Some(Err(e))) => {
+                    console_error!("WebSocket error: {}", e);
                     return Poll::Ready(Err(Error::new(ErrorKind::Other, e.to_string())))
                 }
                 _ => return Poll::Ready(Ok(())), // None or Close event, return Ok to indicate stream end
@@ -100,6 +171,7 @@ impl AsyncRead for WebSocketStream<'_> {
 impl AsyncWrite for WebSocketStream<'_> {
     fn poll_write(self: Pin<&mut Self>, _: &mut Context<'_>, buf: &[u8]) -> Poll<Result<usize>> {
         if let Err(e) = self.ws.send_with_bytes(buf) {
+            console_error!("WebSocket send error: {}", e);
             return Poll::Ready(Err(Error::new(ErrorKind::Other, e.to_string())));
         }
 
@@ -112,6 +184,7 @@ impl AsyncWrite for WebSocketStream<'_> {
 
     fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Result<()>> {
         if let Err(e) = self.ws.close(None, Some("normal close")) {
+            console_error!("WebSocket close error: {}", e);
             return Poll::Ready(Err(Error::new(ErrorKind::Other, e.to_string())));
         }
 

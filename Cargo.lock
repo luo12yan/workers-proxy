@@ -487,7 +487,6 @@ dependencies = [
  "tower-service",
  "wasm-bindgen-futures",
  "worker",
- "worker-macros",
 ]
 
 [[package]]

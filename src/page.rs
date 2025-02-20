@@ -1,8 +1,4 @@
-use crate::{
-    ext::RequestExt,
-    proxy::{parse_early_data, parse_user_id},
-    websocket::ws_handler,
-};
+use crate::{ext::RequestExt, websocket::ws_handler};
 use base64::{engine::general_purpose, Engine as _};
 use worker::*;
 
@@ -30,31 +26,27 @@ fn subscribe_page(req: Request, user_str: String) -> Result<Response> {
     Response::from_html(general_purpose::STANDARD.encode(body))
 }
 
-pub fn router_handler(req: Request, env: Env) -> Result<Response> {
+pub async fn router_handler(req: Request, env: Env) -> Result<Response> {
     let user_str = env.var("USER_ID").map_or(String::new(), |s| s.to_string());
-    let user_id = parse_user_id(&user_str);
-
-    // get proxy ip list
-    let proxy_ip = env.var("PROXY_IP").map_or(String::new(), |s| s.to_string());
-    let proxy_ip = proxy_ip
-        .split_ascii_whitespace()
-        .filter(|s| !s.is_empty())
-        .map(|s| s.to_string())
-        .collect::<Vec<String>>();
 
     //判断是否为websocket请求
-    let is_ws = req
+    if req
         .header("Upgrade")
-        .map_or(false, |s| s.to_lowercase() == "websocket");
+        .map_or(false, |s| s.to_lowercase() == "websocket")
+    {
 
-    let ws_protocol = req.header("sec-websocket-protocol");
-    let ws_protocol = parse_early_data(ws_protocol).unwrap_or(None);
+        if let Ok(namespace)=env.durable_object("WEBSOCKETSESSION"){
+            if let Ok(object)=namespace.id_from_name("WS"){
+                if let Ok(stub)=object.get_stub(){
+                    return stub.fetch_with_request(req).await;
+                }
+            }
+        }
 
-    if is_ws  {
-        return ws_handler(user_id, proxy_ip, ws_protocol);
+        return ws_handler(req, &env);
     }
 
-    //判断用户UUID,如果存在则转去痛授权页面
+    //判断用户UUID,如果存在则转去订阅页面
     if req.path().to_string().contains(user_str.as_str()) && user_str.len() > 0 {
         return subscribe_page(req, user_str);
     }

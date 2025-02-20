@@ -86,9 +86,10 @@ pub async fn run_tunnel(
     // process outbound
     match network_type {
         protocol::NETWORK_TYPE_TCP => {
+            let addrs = [vec![remote_addr], proxy_ip].concat();
             // try to connect to remote
-            for target in [vec![remote_addr], proxy_ip].concat() {
-                match process_tcp_outbound(&mut client_socket, &target, remote_port).await {
+            for target in &addrs {
+                match process_tcp_outbound(&mut client_socket, target, remote_port).await {
                     Ok(_) => {
                         // normal closed
                         return Ok(());
@@ -96,7 +97,10 @@ pub async fn run_tunnel(
                     Err(e) => {
                         // connection reset
                         if e.kind() != ErrorKind::ConnectionReset {
-                            return Err(e);
+                            return Err(Error::new(
+                                e.kind(),
+                                format!("Connection is reset error,{:?}", e),
+                            ));
                         }
 
                         // continue to next target
@@ -105,14 +109,17 @@ pub async fn run_tunnel(
                 }
             }
 
-            Err(Error::new(ErrorKind::InvalidData, "no target to connect"))
+            Err(Error::new(
+                ErrorKind::InvalidData,
+                format!("no target to connect,{:?}", addrs),
+            ))
         }
         protocol::NETWORK_TYPE_UDP => {
             process_udp_outbound(&mut client_socket, &remote_addr, remote_port).await
         }
         unknown => Err(Error::new(
             ErrorKind::InvalidData,
-            format!("unsupported network type: {}", unknown),
+            format!("unsupported network type: {:?}", unknown),
         )),
     }
 }
@@ -195,7 +202,12 @@ async fn process_udp_outbound(
         }
 
         // read dns packet
-        let packet = client_socket.read_bytes(length.unwrap() as usize).await?;
+        let packet = client_socket.read_bytes(length.unwrap() as usize).await.map_err(|e| {
+            Error::new(
+                e.kind(),
+                format!("read dns packet error: {}", e),
+            )
+        })?;
 
         // create request
         let request = Request::new_with_init("https://1.1.1.1/dns-query", &{
